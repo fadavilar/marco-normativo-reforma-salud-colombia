@@ -4,10 +4,12 @@ Aplicación web estática de una sola página (HTML/CSS/JS vanilla) sobre el ase
 
 ## Contenido
 
-- **Hojas 01–06**: caracterización del aseguramiento a partir de un extracto de la Base de Datos Única de Afiliados (BDUA/ADRES), 204.489 registros, 51 cortes mensuales (ene 2022 – mar 2026), por régimen, departamento, género y grupo etario.
-- **Hoja 07 — Aseguradores (EPS)**: relevamiento propio e independiente del BDUA (que no trae desglose por EPS), con homologación de nombres de asegurador a su forma más simple, estado de intervención/administración/liquidación, filtros por estado y buscador, y hallazgos dinámicos y estáticos.
+- **Hoja 01 — Resumen general**: KPIs y gráficos nacionales, con panel plegable de metodología, definiciones, antecedentes de la reforma y bibliografía completa.
+- **Hoja 02 — Marco normativo · Eje 1**: línea de tiempo normativa del SGSSS.
+- **Hojas 03–06**: evolución, crecimiento por régimen, pirámide poblacional y distribución geográfica del aseguramiento, a partir de un extracto de la Base de Datos Única de Afiliados (BDUA/ADRES) — 995.485 registros, 51 cortes mensuales (ene 2022 – mar 2026), por régimen, departamento, género, grupo etario y EPS/administradora.
+- **Filtros globales** (régimen, departamento y asegurador/EPS) aplican a las hojas 01 y 03–06, con nombres de EPS homologados a su forma más simple.
+- **Hoja 07 — Aseguradores (EPS)**: relevamiento cualitativo propio e independiente del BDUA, con homologación de nombres de asegurador, estado de intervención/administración/liquidación, filtros por estado y buscador, y hallazgos dinámicos y estáticos.
 - **Hoja 08 — Hallazgos**: síntesis dinámica (según filtros) y estática (nacional) de la serie de afiliados.
-- **Hoja 09 — Metodología y fuentes**: trazabilidad del dato, antecedentes históricos de la reforma (antes de la Ley 100, liquidaciones e intervenciones bajo tres gobiernos distintos) y bibliografía completa.
 
 ## Ejecutar localmente
 
@@ -27,4 +29,4 @@ Luego abre `http://localhost:8845/`.
 
 ## Fuentes principales
 
-Ver la Hoja 09 (Metodología y fuentes) dentro de la aplicación para la bibliografía normativa y periodística completa, con enlaces.
+Ver el panel de Metodología (desplegable en la Hoja 01) para la bibliografía normativa y periodística completa, con enlaces.
