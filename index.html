@@ -360,19 +360,20 @@ input[type=range]{ accent-color: var(--brand); width: 170px; }
   <div class="main">
 
     <div class="topbar">
-      <div class="filter-block">
+      <div class="filter-block" id="filterblock-regimen">
         <span class="filter-label">Régimen</span>
         <div class="chipset" id="chips-regimen"><div class="chip active" data-ri="0"><span class="sw" style="background:#1B4B91"></span>Contributivo</div><div class="chip active" data-ri="1"><span class="sw" style="background:#0F6B5C"></span>Subsidiado</div><div class="chip active" data-ri="2"><span class="sw" style="background:#B8860B"></span>Excepción</div><div class="chip active" data-ri="3"><span class="sw" style="background:#6B5B95"></span>INPEC intramural</div></div>
       </div>
-      <div class="filter-block">
+      <div class="filter-block" id="filterblock-depto">
         <span class="filter-label">Departamento</span>
         <select id="select-depto" class="dropdown"><option value="">Todos los departamentos</option></select>
       </div>
-      <div class="filter-block">
+      <div class="filter-block" id="filterblock-eps">
         <span class="filter-label">Asegurador (EPS)</span>
         <select id="select-eps" class="dropdown"><option value="">Todas las EPS/administradoras</option></select>
       </div>
       <button class="reset-link" id="btn-reset">Limpiar filtros</button>
+      <div class="footnote" id="topbar-no-filtros" style="display:none;margin:0;">Esta hoja es un normograma y no usa los filtros del encabezado.</div>
       <div class="topbar-spacer"></div>
       <div class="kpi-pill" id="topbar-kpi">Afiliados (Mar 2026): <b>51.976.036</b></div>
     </div>
@@ -586,11 +587,12 @@ input[type=range]{ accent-color: var(--brand); width: 170px; }
             <div class="chipset" id="chips-eps-estado"></div>
           </div>
           <div class="filter-block">
-            <span class="filter-label">Buscar EPS</span>
-            <input type="text" id="eps-search" class="dropdown" placeholder="Nombre original o razón social…" style="min-width:230px;">
+            <span class="filter-label">Régimen</span>
+            <div class="chipset" id="chips-eps-regimen"></div>
           </div>
           <button class="reset-link" id="btn-eps-reset">Limpiar filtros</button>
         </div>
+        <div class="footnote" style="margin:-4px 0 12px;" id="eps-linked-note">El asegurador seleccionado en el filtro "Asegurador (EPS)" del encabezado también filtra esta tabla.</div>
 
         <div class="grid grid-4" id="eps-kpis" style="margin-bottom:16px;"></div>
 
@@ -775,6 +777,19 @@ var nP = META.periodos.length, nR = META.regimenes.length, nD = META.departament
     nGe = META.generos.length, nG = META.grupos.length, nA = META.aseguradores.length;
 var LAST_P = nP - 1;
 
+// EPS/administradoras sin afiliados vigentes en el corte más reciente (Mar 2026) del extracto BDUA:
+// liquidadas o absorbidas por otra EPS. No se muestran en los filtros interactivos porque no aportan
+// datos de afiliados hoy (ver Comfaguajira, Comfamiliar y Medimás: liquidadas nov.2022/mar.2022;
+// Convida y Salud Bolívar: liquidadas; Ecoopsos: liquidada abr.2023).
+var EPS_SIN_AFILIADOS_VIGENTES = new Set(['COMFAGUAJIRA','COMFAMILIAR','CONVIDA','ECOOPSOS','MEDIMAS','SALUD BOLIVAR']);
+
+// Mapa administradora -> Set de índices de régimen con datos en algún periodo (para adaptar los chips de régimen)
+var ADMIN_REGIMEN_MAP = (function(){
+  var map = []; for (var ai=0; ai<nA; ai++) map.push(new Set());
+  for (var i=0; i<DB.n; i++) map[DB.a[i]].add(DB.r[i]);
+  return map;
+})();
+
 var state = {
   regs: null,     // Set de indices activos, null = todos
   depto: null,    // indice unico o null = todos
@@ -804,10 +819,12 @@ function buildChipsRegimen(){
     chip.dataset.ri = ri;
     chip.innerHTML = '<span class="sw" style="background:'+REGIMEN_COLORS[rn]+'"></span>' + REGIMEN_LABELS[rn];
     chip.addEventListener('click', function(){
-      var active = wrap.querySelectorAll('.chip.active').length;
-      if (chip.classList.contains('active') && active===1) return; // no permitir dejar 0 activos
+      if (chip.style.display==='none') return; // no aplica a la EPS filtrada actualmente
+      var visibles = Array.prototype.slice.call(wrap.querySelectorAll('.chip')).filter(function(c){return c.style.display!=='none';});
+      var activeVisibles = visibles.filter(function(c){return c.classList.contains('active');}).length;
+      if (chip.classList.contains('active') && activeVisibles===1) return; // no permitir dejar 0 activos
       chip.classList.toggle('active');
-      var chosen = Array.prototype.slice.call(wrap.querySelectorAll('.chip.active')).map(function(c){return +c.dataset.ri;});
+      var chosen = visibles.filter(function(c){return c.classList.contains('active');}).map(function(c){return +c.dataset.ri;});
       state.regs = (chosen.length === nR) ? null : new Set(chosen);
       renderAll();
     });
@@ -831,7 +848,9 @@ function buildSelectDepto(){
 function buildSelectEps(){
   var sel = document.getElementById('select-eps');
   sel.innerHTML = '<option value="">Todas las EPS/administradoras</option>';
-  var opciones = META.aseguradores.map(function(an, ai){ return { ai:ai, label: homologarNombreEPS(an) }; });
+  var opciones = META.aseguradores
+    .map(function(an, ai){ return { ai:ai, an:an, label: homologarNombreEPS(an) }; })
+    .filter(function(o){ return !EPS_SIN_AFILIADOS_VIGENTES.has(o.an); });
   opciones.sort(function(a,b){ return a.label.localeCompare(b.label,'es'); });
   opciones.forEach(function(o){
     var opt = document.createElement('option');
@@ -841,22 +860,67 @@ function buildSelectEps(){
   });
   sel.addEventListener('change', function(){
     state.admin = sel.value === '' ? null : +sel.value;
+    onAdminFilterChange();
     renderAll();
+    if (typeof renderAseguradores === 'function') renderAseguradores();
   });
+}
+function onAdminFilterChange(){
+  var validRegs = state.admin===null ? null : ADMIN_REGIMEN_MAP[state.admin];
+  var wrap = document.getElementById('chips-regimen');
+  var chosen = [];
+  wrap.querySelectorAll('.chip').forEach(function(c){
+    var ri = +c.dataset.ri;
+    var applicable = !validRegs || validRegs.has(ri);
+    c.style.display = applicable ? '' : 'none';
+    if (applicable) chosen.push(ri);
+  });
+  if (validRegs){
+    // limita la selección a los regímenes aplicables a la EPS elegida
+    wrap.querySelectorAll('.chip').forEach(function(c){
+      var ri = +c.dataset.ri;
+      c.classList.toggle('active', validRegs.has(ri));
+    });
+    state.regs = (chosen.length === nR) ? null : new Set(chosen);
+  } else {
+    // sin EPS seleccionada: vuelve a mostrar todos los regímenes activos
+    wrap.querySelectorAll('.chip').forEach(function(c){ c.classList.add('active'); });
+    state.regs = null;
+  }
 }
 function buildResetBtn(){
   document.getElementById('btn-reset').addEventListener('click', function(){
     state.regs = null; state.depto = null; state.admin = null;
-    document.querySelectorAll('#chips-regimen .chip').forEach(function(c){ c.classList.add('active'); });
+    document.querySelectorAll('#chips-regimen .chip').forEach(function(c){ c.classList.add('active'); c.style.display=''; });
     document.getElementById('select-depto').value = '';
     document.getElementById('select-eps').value = '';
     renderAll();
+    if (typeof renderAseguradores === 'function') renderAseguradores();
   });
 }
 
 /* ============================================================
    4. Navegación entre hojas
    ============================================================ */
+var FILTER_VISIBILITY = {
+  portada:      {regimen:true,  depto:true,  eps:true},
+  normativa:    {regimen:false, depto:false, eps:false},
+  evolucion:    {regimen:true,  depto:true,  eps:true},
+  regimen:      {regimen:true,  depto:true,  eps:true},
+  piramide:     {regimen:true,  depto:true,  eps:true},
+  geografia:    {regimen:true,  depto:true,  eps:true},
+  aseguradores: {regimen:false, depto:false, eps:true},
+  hallazgos:    {regimen:true,  depto:true,  eps:true}
+};
+function applyFilterVisibility(target){
+  var v = FILTER_VISIBILITY[target] || {regimen:true, depto:true, eps:true};
+  document.getElementById('filterblock-regimen').style.display = v.regimen ? '' : 'none';
+  document.getElementById('filterblock-depto').style.display = v.depto ? '' : 'none';
+  document.getElementById('filterblock-eps').style.display = v.eps ? '' : 'none';
+  var anyVisible = v.regimen || v.depto || v.eps;
+  document.getElementById('btn-reset').style.display = anyVisible ? '' : 'none';
+  document.getElementById('topbar-no-filtros').style.display = anyVisible ? 'none' : '';
+}
 function buildNav(){
   var items = document.querySelectorAll('.nav-item');
   items.forEach(function(it){
@@ -866,11 +930,13 @@ function buildNav(){
       var target = it.dataset.hoja;
       document.querySelectorAll('.hoja').forEach(function(h){ h.classList.remove('active'); });
       document.getElementById('hoja-' + target).classList.add('active');
+      applyFilterVisibility(target);
       requestAnimationFrame(function(){
         (charts[target] || []).forEach(function(ch){ ch.resize(); });
       });
     });
   });
+  applyFilterVisibility('portada');
 }
 
 function buildMetodologiaToggle(){
@@ -1418,8 +1484,8 @@ function homologarNombreEPS(raw){
   });
   // 3) limpia guiones sueltos que hayan quedado y espacios repetidos
   s = s.replace(/[-–—]/g, ' ').replace(/\s+/g,' ').trim();
-  if (EPS_ALIAS[s]) return EPS_ALIAS[s];
-  return titleCaseEs(s || raw);
+  if (EPS_ALIAS[s]) return EPS_ALIAS[s].toUpperCase();
+  return (s || raw).toUpperCase();
 }
 
 var EPS_ESTADOS = [
@@ -1498,7 +1564,8 @@ var EPS_DATA = [
   return r;
 });
 
-var epsState = { estados: null, query: '' }; // estados null = todos
+var epsState = { estados: null, regimenes: null }; // null = todos
+var EPS_REGIMEN_CHIPS = ['Contributivo', 'Subsidiado'];
 
 function buildChipsEpsEstado(){
   var wrap = document.getElementById('chips-eps-estado');
@@ -1519,25 +1586,45 @@ function buildChipsEpsEstado(){
     wrap.appendChild(chip);
   });
 }
-function buildEpsFilters(){
-  var input = document.getElementById('eps-search');
-  input.addEventListener('input', function(){
-    epsState.query = input.value.trim().toUpperCase();
-    renderAseguradores();
+function buildChipsEpsRegimen(){
+  var wrap = document.getElementById('chips-eps-regimen');
+  wrap.innerHTML = '';
+  EPS_REGIMEN_CHIPS.forEach(function(rn){
+    var chip = document.createElement('div');
+    chip.className = 'chip active';
+    chip.dataset.rn = rn;
+    chip.textContent = rn;
+    chip.addEventListener('click', function(){
+      var activeChips = wrap.querySelectorAll('.chip.active').length;
+      if (chip.classList.contains('active') && activeChips===1) return;
+      chip.classList.toggle('active');
+      var chosen = Array.prototype.slice.call(wrap.querySelectorAll('.chip.active')).map(function(c){ return c.dataset.rn; });
+      epsState.regimenes = (chosen.length === EPS_REGIMEN_CHIPS.length) ? null : chosen;
+      renderAseguradores();
+    });
+    wrap.appendChild(chip);
   });
+}
+function buildEpsFilters(){
   document.getElementById('btn-eps-reset').addEventListener('click', function(){
-    epsState.estados = null; epsState.query = '';
-    input.value = '';
+    epsState.estados = null; epsState.regimenes = null;
     document.querySelectorAll('#chips-eps-estado .chip').forEach(function(c){ c.classList.add('active'); });
+    document.querySelectorAll('#chips-eps-regimen .chip').forEach(function(c){ c.classList.add('active'); });
+    state.admin = null;
+    document.getElementById('select-eps').value = '';
+    onAdminFilterChange();
+    renderAll();
     renderAseguradores();
   });
 }
+function selectedAdminHomolog(){
+  return state.admin===null ? null : homologarNombreEPS(META.aseguradores[state.admin]);
+}
 function epsMatchesFilter(row){
   if (epsState.estados && epsState.estados.indexOf(row.estado)===-1) return false;
-  if (epsState.query){
-    var hay = (row.homolog + ' ' + row.variantes.join(' ')).toUpperCase();
-    if (hay.indexOf(epsState.query)===-1) return false;
-  }
+  if (epsState.regimenes && !epsState.regimenes.some(function(rn){ return row.regimen.indexOf(rn)>=0; })) return false;
+  var selAdmin = selectedAdminHomolog();
+  if (selAdmin && row.homolog !== selAdmin) return false;
   return true;
 }
 function renderAseguradores(){
@@ -1551,21 +1638,26 @@ function renderAseguradores(){
     kpiCardHtml('Intervenidas / liquidadas — histórico', nLiq, undefined, false, 'desde 2015, bajo 3 gobiernos') +
     kpiCardHtml('Cartera EPS vencida con IPS', '92,6%', undefined, false, '$38,4 de $41,5 billones, 1T 2026');
 
+  var selAdmin = selectedAdminHomolog();
   document.getElementById('eps-table-note').textContent = filtered.length + ' de ' + EPS_DATA.length + ' EPS mostradas · nombres homologados a su forma más simple';
-  document.getElementById('eps-table-body').innerHTML = filtered.map(function(r){
-    var badgeClass = r.estado==='activa' ? 'vigente' : (r.estado==='administracion' ? 'tramite' : 'suspendido');
-    return '<tr>'+
-      '<td class="txt"><b>'+r.homolog+'</b></td>'+
-      '<td class="txt" style="font-size:11.3px;color:var(--ink-soft);">'+r.variantes.join(' · ')+'</td>'+
-      '<td class="txt">'+r.regimen+'</td>'+
-      '<td class="txt"><span class="norm-badge '+badgeClass+'">'+r.estadoLabel+'</span></td>'+
-      '<td>'+r.desde+'</td>'+
-      '<td class="txt" style="font-size:12.3px;">'+r.detalle+' <a href="'+r.fuenteUrl+'" target="_blank" rel="noopener" style="font-size:11px;">'+r.fuenteLabel+' ↗</a></td>'+
-    '</tr>';
-  }).join('');
+  if (filtered.length===0 && selAdmin){
+    document.getElementById('eps-table-body').innerHTML = '<tr><td class="txt" colspan="6">La EPS seleccionada (<b>'+selAdmin+'</b>) no tiene antecedentes de intervención relevados en esta hoja.</td></tr>';
+  } else {
+    document.getElementById('eps-table-body').innerHTML = filtered.map(function(r){
+      var badgeClass = r.estado==='activa' ? 'vigente' : (r.estado==='administracion' ? 'tramite' : 'suspendido');
+      return '<tr>'+
+        '<td class="txt"><b>'+r.homolog+'</b></td>'+
+        '<td class="txt" style="font-size:11.3px;color:var(--ink-soft);">'+r.variantes.join(' · ')+'</td>'+
+        '<td class="txt">'+r.regimen+'</td>'+
+        '<td class="txt"><span class="norm-badge '+badgeClass+'">'+r.estadoLabel+'</span></td>'+
+        '<td>'+r.desde+'</td>'+
+        '<td class="txt" style="font-size:12.3px;">'+r.detalle+' <a href="'+r.fuenteUrl+'" target="_blank" rel="noopener" style="font-size:11px;">'+r.fuenteLabel+' ↗</a></td>'+
+      '</tr>';
+    }).join('');
+  }
 
   var dynLines = [];
-  var hayFiltro = epsState.estados || epsState.query;
+  var hayFiltro = epsState.estados || epsState.regimenes || selAdmin;
   dynLines.push('En '+(hayFiltro?'el subconjunto filtrado actualmente':'el listado completo')+' hay <b>'+filtered.length+'</b> EPS, de las '+EPS_DATA.length+' relevadas en esta hoja.');
   if (filtered.length>0){
     var admF = filtered.filter(function(r){ return r.estado==='administracion'; }).length;
@@ -1581,7 +1673,8 @@ function renderAseguradores(){
   }
   document.getElementById('eps-hallazgos-dinamicos-note').textContent =
     'Estado: ' + (epsState.estados ? epsState.estados.map(function(k){ return EPS_ESTADOS.filter(function(e){ return e.key===k; })[0].label; }).join(', ') : 'todos') +
-    (epsState.query ? ' · Búsqueda: "'+epsState.query+'"' : '');
+    ' · Régimen: ' + (epsState.regimenes ? epsState.regimenes.join(', ') : 'todos') +
+    (selAdmin ? ' · EPS: '+selAdmin : '');
   document.getElementById('eps-hallazgos-dinamicos').innerHTML = dynLines.map(function(l,i){
     return '<li><span class="bullet">'+(i+1).toString().padStart(2,'0')+'</span><span>'+l+'</span></li>';
   }).join('');
@@ -1641,6 +1734,7 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 
   buildChipsEpsEstado();
+  buildChipsEpsRegimen();
   buildEpsFilters();
 
   renderPortada();
