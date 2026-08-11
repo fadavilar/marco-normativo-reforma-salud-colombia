@@ -1,0 +1,3 @@
+# Artefactos generados por scripts/build-data.ps1 (no se versionan: se regeneran del .xlsx origen)
+scripts/data/
+*.bak
