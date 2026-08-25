@@ -321,6 +321,66 @@ input[type=range]{ accent-color: var(--brand); width: 170px; }
   border-radius:5px; background: var(--paper); border:1px solid var(--line); color: var(--ink-soft);
 }
 
+.table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.table-scroll table.data-table{ min-width: 560px; }
+
+/* ---------------- Mobile: drawer nav + compact layout ---------------- */
+.mobile-topbar{ display:none; }
+.sidebar-overlay{ display:none; }
+.hamburger-btn{
+  background:none; border:1px solid rgba(255,255,255,.28); border-radius:8px;
+  width:38px; height:34px; flex:0 0 auto; cursor:pointer;
+  color:#EAF3EF; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+
+@media (max-width: 860px){
+  .app{ grid-template-columns: 1fr; }
+
+  .sidebar{
+    position: fixed; inset: 0 auto 0 0; width: 258px; max-width: 82vw;
+    transform: translateX(-100%); transition: transform .22s ease;
+    z-index: 60; box-shadow: 2px 0 28px rgba(0,0,0,.3);
+  }
+  .sidebar.open{ transform: translateX(0); }
+
+  .sidebar-overlay{
+    display:block; position:fixed; inset:0; background: rgba(8,18,16,.45);
+    z-index:55; opacity:0; pointer-events:none; transition: opacity .2s ease;
+  }
+  .sidebar-overlay.open{ opacity:1; pointer-events:auto; }
+
+  .mobile-topbar{
+    display:flex; align-items:center; gap:12px;
+    position: sticky; top:0; z-index:40;
+    background: linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-2) 100%);
+    color:#EAF3EF; padding: 12px 16px;
+  }
+  .mobile-topbar .v{ font-family: var(--font-display); font-size:15px; }
+
+  .topbar{ padding: 10px 14px; gap:10px 12px; }
+  .filter-block{ flex: 1 1 150px; min-width: 0; }
+  select.dropdown{ min-width: 0; width:100%; }
+  .kpi-pill{ flex: 1 1 100%; text-align:center; order: 5; }
+
+  .content{ padding: 18px 14px 50px; }
+  .hoja-title{ font-size: 22px; }
+  .hoja-sub{ font-size:14px; }
+  .eje-banner{ flex-wrap:wrap; }
+}
+
+@media (max-width: 640px){
+  .grid-2, .grid-3, .grid-4{ grid-template-columns: 1fr; }
+  .stat-value{ font-size:23px; }
+  .card{ padding: 15px 16px; }
+  .chart-wrap:has(#chart-portada-serie),
+  .chart-wrap:has(#chart-portada-donut){ height:210px !important; }
+  .chart-wrap:has(#chart-evolucion){ height:260px !important; }
+  .chart-wrap:has(#chart-regimen-index),
+  .chart-wrap:has(#chart-regimen-bar){ height:230px !important; }
+  .chart-wrap:has(#chart-piramide){ height:340px !important; }
+  .chart-wrap:has(#chart-geografia){ height:480px !important; }
+}
+
 </style>
 </head>
 <body>
@@ -356,8 +416,15 @@ input[type=range]{ accent-color: var(--brand); width: 170px; }
     </div>
   </aside>
 
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
   <!-- ================= MAIN ================= -->
   <div class="main">
+
+    <div class="mobile-topbar">
+      <button class="hamburger-btn" id="btn-mobile-menu" aria-label="Abrir menú de navegación">☰</button>
+      <div class="v">Marco legal y normativo de la salud</div>
+    </div>
 
     <div class="topbar">
       <div class="filter-block" id="filterblock-regimen">
@@ -514,10 +581,10 @@ input[type=range]{ accent-color: var(--brand); width: 170px; }
 
         <div class="card">
           <div class="card-title">Detalle por régimen</div>
-          <table class="data-table">
+          <div class="table-scroll"><table class="data-table">
             <thead><tr><th>Régimen</th><th>Afiliados — inicio</th><th>Afiliados — corte actual</th><th>Δ absoluta</th><th>Δ %</th></tr></thead>
             <tbody id="regimen-table-body"><tr><td class="txt"><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#1B4B91;margin-right:7px;"></span>Contributivo</td><td>21.974.421</td><td>22.803.343</td><td>+828.922</td><td>+3,8%</td></tr><tr><td class="txt"><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#0F6B5C;margin-right:7px;"></span>Subsidiado</td><td>24.013.229</td><td>26.910.400</td><td>+2.897.171</td><td>+12,1%</td></tr><tr><td class="txt"><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#B8860B;margin-right:7px;"></span>Excepción</td><td>2.150.272</td><td>2.174.470</td><td>+24.198</td><td>+1,1%</td></tr><tr><td class="txt"><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#6B5B95;margin-right:7px;"></span>INPEC intramural</td><td>0</td><td>87.823</td><td>+87.823</td><td>—</td></tr></tbody>
-          </table>
+          </table></div>
         </div>
       </section>
 
@@ -595,10 +662,10 @@ input[type=range]{ accent-color: var(--brand); width: 170px; }
         <div class="card" style="margin-bottom:16px;">
           <div class="card-title">Aseguradoras — nombre homologado y estado</div>
           <div class="card-note" id="eps-table-note"></div>
-          <table class="data-table">
+          <div class="table-scroll"><table class="data-table">
             <thead><tr><th>EPS (nombre homologado)</th><th>Variantes originales homologadas</th><th>Régimen</th><th>Estado</th><th>Desde</th><th class="txt">Resultado / hallazgo</th></tr></thead>
             <tbody id="eps-table-body"></tbody>
-          </table>
+          </table></div>
         </div>
 
         <div class="grid grid-2">
@@ -927,12 +994,28 @@ function buildNav(){
       document.querySelectorAll('.hoja').forEach(function(h){ h.classList.remove('active'); });
       document.getElementById('hoja-' + target).classList.add('active');
       applyFilterVisibility(target);
+      closeMobileMenu();
       requestAnimationFrame(function(){
         (charts[target] || []).forEach(function(ch){ ch.resize(); });
       });
     });
   });
   applyFilterVisibility('portada');
+}
+
+function closeMobileMenu(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+function buildMobileMenu(){
+  var btn = document.getElementById('btn-mobile-menu');
+  var sidebar = document.querySelector('.sidebar');
+  var overlay = document.getElementById('sidebar-overlay');
+  btn.addEventListener('click', function(){
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+  });
+  overlay.addEventListener('click', closeMobileMenu);
 }
 
 function buildMetodologiaToggle(){
@@ -1719,6 +1802,7 @@ document.addEventListener('DOMContentLoaded', function(){
   buildSelectEps();
   buildResetBtn();
   buildNav();
+  buildMobileMenu();
   buildMetodologiaToggle();
 
   var slider = document.getElementById('piramide-slider');
